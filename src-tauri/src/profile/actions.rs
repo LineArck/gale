@@ -327,6 +327,7 @@ impl ManagedGame {
             sync: None,
             custom_args: String::new(),
             missing: false,
+            folder_layout: Vec::new(),
             ignored_package_updates: HashSet::new(),
         };
 
@@ -443,11 +444,17 @@ impl ManagedGame {
         let mods = old_profile.mods.clone();
         let ignored_updates = old_profile.ignored_version_updates.clone();
         let custom_args = old_profile.custom_args.clone();
+        let folder_layout = old_profile.folder_layout.clone();
 
         let new_profile = self.active_profile_mut();
         new_profile.mods = mods;
         new_profile.ignored_version_updates = ignored_updates;
         new_profile.custom_args = custom_args;
+
+        // the folders file may have been hard linked by copy_dir, so rewrite it
+        new_profile.folder_layout = folder_layout;
+        super::folders::save(&new_profile.path, &new_profile.folder_layout)
+            .context("failed to copy mod folders")?;
 
         Ok(new_profile)
     }

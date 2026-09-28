@@ -8,7 +8,8 @@ import type {
 	QueryModsArgs,
 	ModId,
 	MarkdownType,
-	Dependant
+	Dependant,
+	LayoutEntry
 } from '$lib/types';
 
 export * as export from './export';
@@ -25,6 +26,7 @@ export const getInfo = () => invoke<ManagedGameInfo>('get_profile_info');
 export const setActive = (index: number) => invoke('set_active_profile', { index });
 export const query = (args: QueryModsArgs) => invoke<ProfileQuery>('query_profile', { args });
 export const isModInstalled = (uuid: string) => invoke<boolean>('is_mod_installed', { uuid });
+export const setModLayout = (entries: LayoutEntry[]) => invoke('set_mod_layout', { entries });
 export const create = (name: string, overridePath: string | null) =>
 	invoke('create_profile', { name, overridePath });
 export const deleteProfile = (profileId: number) => invoke('delete_profile', { id: profileId });

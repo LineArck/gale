@@ -284,6 +284,8 @@ export type ProfileQuery = {
 	totalModCount: number;
 	unknownMods: Dependant[];
 	updates: AvailableUpdate[];
+	/** The custom order of all mods in the profile, including folders. */
+	layout: LayoutEntry[];
 };
 
 export type ImportData =
@@ -392,15 +394,36 @@ export interface LaunchOption {
 }
 export type MissingProfileAction = { type: 'locate'; newPath: string } | { type: 'delete' };
 
-export type Folder = {
+/** A folder as it's stored in the backend, referencing mods by uuid. */
+export type ModFolder = {
 	id: string;
-	children: ListItem[];
+	name: string;
+	collapsed: boolean;
+	mods: string[];
 };
 
+export type LayoutEntry = { type: 'mod'; uuid: string } | ({ type: 'folder' } & ModFolder);
+
+/** A folder in the mod list, with its mods resolved. */
+export type Folder = {
+	id: string;
+	name: string;
+	collapsed: boolean;
+	children: Mod[];
+	/** Uuids of mods in this folder that couldn't be resolved (e.g. not found on Thunderstore). */
+	unresolved: string[];
+};
+
+/** A top-level entry of the mod list. */
+export type TreeEntry = { type: 'mod'; mod: Mod } | { type: 'folder'; folder: Folder };
+
+/** A single row of the (flattened) mod list. */
 export type ListItem =
 	| {
 			type: 'mod';
 			mod: Mod;
+			/** The folder this mod is in, if any. */
+			folderId: string | null;
 	  }
 	| {
 			type: 'folder';

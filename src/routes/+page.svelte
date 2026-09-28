@@ -8,7 +8,7 @@
 		ModContextItem,
 		SortBy,
 		DependantWithVersion,
-		ListItem,
+		TreeEntry,
 		Backend
 	} from '$lib/types';
 	import {
@@ -22,7 +22,6 @@
 	import ModCardList from '$lib/components/ui/ModCardList.svelte';
 	import ProfileModListItem from '$lib/components/mod-list/ProfileModListItem.svelte';
 	import UpdateAllBanner from '$lib/components/mod-list/UpdateAllBanner.svelte';
-	import { emit } from '@tauri-apps/api/event';
 	import ProfileLockedBanner from '$lib/components/mod-list/ProfileLockedBanner.svelte';
 	import { defaultContextItems } from '$lib/context';
 	import ModDetails from '$lib/components/mod-list/ModDetails.svelte';
@@ -37,6 +36,18 @@
 	import Button from '$lib/components/ui/Button.svelte';
 	import { untrack } from 'svelte';
 	import ForeignDownloadDialog from '$lib/components/dialogs/ForeignDownloadDialog.svelte';
+	import ModFolderHeader from '$lib/components/mod-list/ModFolderHeader.svelte';
+	import Tooltip from '$lib/components/ui/Tooltip.svelte';
+	import {
+		buildTree,
+		createFolder,
+		deleteFolder,
+		folderOf,
+		folders,
+		moveModToFolder,
+		toLayout,
+		updateFolder
+	} from '$lib/modFolders';
 
 	const sortOptions: SortBy[] = [
 		'custom',
@@ -89,11 +100,31 @@
 			showFor: (mod) => mod.configFile != null,
 			onclick: (mod) => config.gotoModConfig(mod.configFile!)
 		},
+		{
+			label: m.modFolders_moveTo(),
+			icon: 'mdi:folder-move',
+			onclick: () => {},
+			showFor: (mod) => reorderable && otherFolders(mod).length > 0,
+			children: (mod) =>
+				otherFolders(mod).map((folder) => ({
+					label: folder.name,
+					icon: 'mdi:folder',
+					onclick: () => setTree(moveModToFolder(tree, mod.uuid, folder.id))
+				}))
+		},
+		{
+			label: m.modFolders_removeFrom(),
+			icon: 'mdi:folder-arrow-up',
+			showFor: (mod) => reorderable && folderOf(tree, mod.uuid) !== null,
+			onclick: (mod) => setTree(moveModToFolder(tree, mod.uuid, null))
+		},
 		...defaultContextItems
 	];
 
 	let mods: Mod[] = $state([]);
-	let items: ListItem[] = $state([]);
+	let tree: TreeEntry[] = $state([]);
+	let editingFolderId: string | null = $state(null);
+	let reorderableList: ReorderableList | undefined = $state();
 	let totalModCount = $state(0);
 	let unknownMods: Dependant[] = $state([]);
 	// map from package uuids to updates
@@ -132,7 +163,10 @@
 			);
 
 			mods = result.mods;
-			items = result.mods.map((mod) => ({ type: 'mod', mod }));
+			// folders are only shown when the whole list is in custom order
+			tree = reorderable
+				? buildTree(result.layout, result.mods, isDescending())
+				: result.mods.map((mod) => ({ type: 'mod', mod }));
 			totalModCount = result.totalModCount;
 			unknownMods = result.unknownMods;
 			updates = updateMap;
@@ -205,16 +239,32 @@
 		}
 	}
 
-	async function onmove(item: ListItem, fromIndex: number, toIndex: number) {
-		if (item.type !== 'mod') return;
+	function isDescending() {
+		return profileQuery.current.sortOrder === 'descending';
+	}
 
-		let delta = toIndex - fromIndex;
+	async function setTree(newTree: TreeEntry[]) {
+		tree = newTree;
 
-		if (profileQuery.current.sortOrder === 'descending') {
-			delta *= -1; // list is reversed
+		try {
+			await api.profile.setModLayout(toLayout(newTree, isDescending()));
+		} catch {
+			// the error is already shown, get back in sync with the backend
+			await refresh();
 		}
+	}
 
-		await emit('reorder_mod', { uuid: item.mod.uuid, delta });
+	function otherFolders(mod: Mod) {
+		return folders(tree).filter(
+			(folder) => !folder.children.some((child) => child.uuid === mod.uuid)
+		);
+	}
+
+	function newFolder() {
+		const result = createFolder(tree, m.modFolders_defaultName());
+		setTree(result.tree);
+		editingFolderId = result.id;
+		reorderableList?.scrollToTop();
 	}
 
 	$effect(() => {
@@ -239,7 +289,23 @@
 
 <div class="flex grow overflow-hidden">
 	<div class="flex w-[60%] grow flex-col overflow-hidden px-4 pt-4">
-		<ModListFilters {sortOptions} bind:queryArgs={profileQuery.current} />
+		<ModListFilters {sortOptions} bind:queryArgs={profileQuery.current}>
+			{#snippet actions()}
+				<Tooltip
+					text={reorderable ? m.modFolders_newFolder() : m.modFolders_unavailable()}
+					side="bottom"
+				>
+					<button
+						onclick={newFolder}
+						disabled={!reorderable}
+						aria-label={m.modFolders_newFolder()}
+						class="enabled:hover:border-primary-400 dark:bg-primary-900 dark:enabled:hover:border-primary-500 bg-primary-100 text-primary-500 dark:text-primary-400 flex h-full items-center rounded-lg border border-transparent px-2.5 text-lg disabled:cursor-not-allowed disabled:opacity-50"
+					>
+						<Icon icon="mdi:folder-plus" />
+					</button>
+				</Tooltip>
+			{/snippet}
+		</ModListFilters>
 
 		{#if locked}
 			<ProfileLockedBanner class="mb-1" />
@@ -270,7 +336,20 @@
 				</HelpCard>
 			{/if}
 		{:else}
-			<ReorderableList bind:items {onmove} {reorderable}>
+			<ReorderableList bind:this={reorderableList} bind:tree onchange={setTree} {reorderable}>
+				{#snippet folder({ folder })}
+					<ModFolderHeader
+						{folder}
+						bind:editing={
+							() => editingFolderId === folder.id,
+							(editing) => (editingFolderId = editing ? folder.id : null)
+						}
+						ontoggle={() =>
+							setTree(updateFolder(tree, folder.id, { collapsed: !folder.collapsed }))}
+						onrename={(name) => setTree(updateFolder(tree, folder.id, { name }))}
+						ondelete={() => setTree(deleteFolder(tree, folder.id))}
+					/>
+				{/snippet}
 				{#snippet mod({ mod, index })}
 					<ProfileModListItem
 						{mod}

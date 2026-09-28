@@ -135,6 +135,7 @@ pub fn run() {
             profile::commands::set_active_profile,
             profile::commands::is_mod_installed,
             profile::commands::query_profile,
+            profile::commands::set_mod_layout,
             profile::commands::get_dependants,
             profile::commands::create_profile,
             profile::commands::delete_profile,

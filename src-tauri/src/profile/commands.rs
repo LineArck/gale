@@ -8,7 +8,7 @@ use tauri::{AppHandle, command};
 use tracing::warn;
 use uuid::Uuid;
 
-use super::{Dependant, Profile, actions::ActionResult};
+use super::{Dependant, Profile, actions::ActionResult, folders};
 use crate::{
     game::{self, Game, platform::Platform},
     profile::FrontendManagedGame,
@@ -166,6 +166,7 @@ pub struct ProfileQuery {
     total_mod_count: usize,
     updates: Vec<FrontendAvailableUpdate>,
     unknown_mods: Vec<Dependant>,
+    layout: Vec<folders::LayoutEntry>,
 }
 
 #[command]
@@ -211,6 +212,7 @@ pub fn query_profile(args: QueryModsArgs, app: AppHandle) -> Result<ProfileQuery
         total_mod_count,
         updates,
         unknown_mods,
+        layout: profile.mod_layout(),
     })
 }
 
@@ -561,4 +563,15 @@ pub fn get_hidden_mods(app: AppHandle) -> Result<Vec<Dependant>> {
         .collect();
 
     Ok(hidden_mods)
+}
+
+#[command]
+pub fn set_mod_layout(entries: Vec<folders::LayoutEntry>, app: AppHandle) -> Result<()> {
+    let mut manager = app.lock_manager();
+    let profile = manager.active_profile_mut();
+
+    profile.set_mod_layout(entries)?;
+    profile.save(&app, false)?;
+
+    Ok(())
 }

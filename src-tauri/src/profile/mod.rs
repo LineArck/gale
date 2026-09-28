@@ -25,6 +25,7 @@ use crate::{
 
 pub mod commands;
 pub mod export;
+pub mod folders;
 pub mod import;
 pub mod install;
 pub mod launch;
@@ -78,6 +79,8 @@ pub struct Profile {
     pub sync: Option<sync::SyncProfileData>,
     pub custom_args: String,
     pub missing: bool,
+    /// User-defined mod folders, see [`folders`].
+    pub folder_layout: Vec<folders::LayoutEntry>,
 }
 
 #[derive(Serialize, Deserialize, Clone, Debug)]
@@ -598,6 +601,7 @@ impl ModManager {
             };
 
             let profile = Profile {
+                folder_layout: folders::load(&path),
                 path,
                 game,
                 id: saved_profile.id,

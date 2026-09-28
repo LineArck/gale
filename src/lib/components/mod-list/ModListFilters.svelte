@@ -6,13 +6,16 @@
 	import Select from '$lib/components/ui/Select.svelte';
 	import { toSentenceCase } from '$lib/i18n';
 	import { m } from '$lib/paraglide/messages';
+	import type { Snippet } from 'svelte';
 
 	type Props = {
 		sortOptions: SortBy[];
 		queryArgs: QueryModsArgsWithoutMax;
+		/** Extra controls at the end of the second row. */
+		actions?: Snippet;
 	};
 
-	let { sortOptions, queryArgs = $bindable() }: Props = $props();
+	let { sortOptions, queryArgs = $bindable(), actions }: Props = $props();
 
 	function getSelectedIncludes() {
 		let selected = [];
@@ -71,7 +74,12 @@
 	/>
 </div>
 
-<div class="mb-1.5 grid grid-cols-[2fr_2fr_auto] gap-1.5">
+<div
+	class={[
+		'mb-1.5 grid gap-1.5',
+		actions ? 'grid-cols-[2fr_2fr_auto_auto]' : 'grid-cols-[2fr_2fr_auto]'
+	]}
+>
 	<ModListCategoryFilter
 		label={m.modListFilters_filter_include()}
 		icon="mdi:filter"
@@ -99,4 +107,6 @@
 		value={getSelectedIncludes()}
 		type="multiple"
 	/>
+
+	{@render actions?.()}
 </div>
